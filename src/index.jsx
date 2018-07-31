@@ -117,7 +117,11 @@ export default class Sortable extends Component {
     const nextProps = mergeProps(child.props, emmiterProps, receiverProps, currentProps);
     return cloneElement(child, nextProps);
   };
-  render = () => this.props.children.map(this.cloneChild).concat(this.ghost)
+  render() {
+    const { children } = this.props;
+    if (children.length === 0) return null;
+    return children.map(this.cloneChild).concat(this.ghost);
+  }
 }
 
 Sortable.propTypes = {
