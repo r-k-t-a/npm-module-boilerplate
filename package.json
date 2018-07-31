@@ -1,8 +1,8 @@
 {
   "name": "rkta-sortable",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Simple sortable for react with touch support and minimal side effects",
-  "main": "./lib/index.jsx",
+  "main": "./lib/index.js",
   "scripts": {
     "clean": "rimraf lib",
     "test": "npm run lint && npm run cover",
