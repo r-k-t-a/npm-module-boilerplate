@@ -1,4 +1,4 @@
-import { cloneElement, Component } from 'react';
+import { Children, cloneElement, Component } from 'react';
 import PropTypes from 'prop-types';
 import mergeProps from 'react-merge-props-and-styles';
 
@@ -117,11 +117,7 @@ export default class Sortable extends Component {
     const nextProps = mergeProps(child.props, emmiterProps, receiverProps, currentProps);
     return cloneElement(child, nextProps);
   };
-  render() {
-    const { children } = this.props;
-    if (children.length === 0) return null;
-    return children.map(this.cloneChild).concat(this.ghost);
-  }
+  render = () => Children.map(this.props.children, this.cloneChild).concat(this.ghost);
 }
 
 Sortable.propTypes = {
