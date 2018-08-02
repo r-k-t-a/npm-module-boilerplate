@@ -7,6 +7,7 @@ Simple sortable for react with touch support and minimal side effects
   <Sortable
     emmiterProps={{ className: 'fade' }}
     ghostProps={{ className: 'boxShadow' }}
+    moveRecipient={true}
     receiverProps={{ className: 'highlight' }}
     onSortComplete={(position, nextPosition) => console.log({ position, nextPosition })}
     onSortMove={currentPosition => console.log({ currentPosition })}
