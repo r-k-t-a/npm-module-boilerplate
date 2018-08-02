@@ -1,4 +1,5 @@
 import { Children, cloneElement, Component } from 'react';
+import { findDOMNode } from 'react-dom';
 import PropTypes from 'prop-types';
 import mergeProps from 'react-merge-props-and-styles';
 import arrayMove from 'array-move';
@@ -25,14 +26,12 @@ export default class Sortable extends Component {
     onSortComplete: PropTypes.func,
     onSortMove: PropTypes.func,
     receiverProps: PropTypes.shape(),
-    refInterface: PropTypes.string,
   };
   static defaultProps = {
     emmiterProps: {},
     ghostProps: {},
     moveRecipient: true,
     receiverProps: {},
-    refInterface: 'ref',
     onSortComplete: () => null,
     onSortMove: () => null,
   }
@@ -49,7 +48,7 @@ export default class Sortable extends Component {
     window.removeEventListener('mousemove', this.handleDrag);
     window.addEventListener('pointerup', this.handleDragEnd);
   }
-  get children() {
+  get displayChildren() {
     const { activeElementIndex, dragOverIndex } = this.state;
     const { children, moveRecipient } = this.props;
     if (
@@ -58,6 +57,9 @@ export default class Sortable extends Component {
       !moveRecipient
     ) return children;
     return arrayMove(children, activeElementIndex, dragOverIndex);
+  }
+  get childrenArray() {
+    return Children.toArray(this.props.children);
   }
   get ghost() {
     const {
@@ -68,7 +70,7 @@ export default class Sortable extends Component {
       fixY,
     } = this.state;
     if (activeElementIndex === NULL_INDEX) return null;
-    const activeChild = this.props.children[activeElementIndex];
+    const activeChild = this.childrenArray[activeElementIndex];
     const activeRef = this.itemRefs[activeElementIndex];
     const currentProps = {
       key: 'rkta-sortable-ghost',
@@ -84,7 +86,7 @@ export default class Sortable extends Component {
     return cloneElement(activeChild, nextProps);
   }
   get nullRefs() {
-    return this.props.children.map((child, key) => this.itemRefs[key] || NULL_INDEX);
+    return this.childrenArray.map((child, key) => this.itemRefs[key] || NULL_INDEX);
   }
   itemRefs = [];
   makeBeginHandler = activeElementIndex => (event) => {
@@ -102,7 +104,7 @@ export default class Sortable extends Component {
     event.stopPropagation();
   };
   makeRefHandler = key => (ref) => {
-    if (ref) this.itemRefs[key] = ref;
+    if (ref) this.itemRefs[key] = findDOMNode(ref); // eslint-disable-line
   }
   handleDrag = (event) => {
     if (this.state.activeElementIndex === NULL_INDEX) return;
@@ -127,12 +129,12 @@ export default class Sortable extends Component {
     const { activeElementIndex, dragOverIndex } = this.state;
     const currentProps = {
       key,
-      [this.props.refInterface]: this.makeRefHandler(key),
       onPointerDown: this.makeBeginHandler(key),
       onTouchStart: this.makeBeginHandler(key),
       onTouchEnd: this.handleDragEnd,
       onTouchCancel: this.handleDragEnd,
       onTouchMove: this.handleDrag,
+      ref: this.makeRefHandler(key),
     };
     const emmiterProps = key === dragOverIndex ||
       (dragOverIndex === NULL_INDEX && key === activeElementIndex)
@@ -144,5 +146,5 @@ export default class Sortable extends Component {
     const nextProps = mergeProps(child.props, emmiterProps, receiverProps, currentProps);
     return cloneElement(child, nextProps);
   };
-  render = () => Children.map(this.children, this.cloneChild).concat(this.ghost);
+  render = () => Children.map(this.displayChildren, this.cloneChild).concat(this.ghost);
 }

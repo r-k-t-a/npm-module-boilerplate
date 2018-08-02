@@ -11,7 +11,6 @@ Simple sortable for react with touch support and minimal side effects
     receiverProps={{ className: 'highlight' }}
     onSortComplete={(position, nextPosition) => console.log({ position, nextPosition })}
     onSortMove={currentPosition => console.log({ currentPosition })}
-    refInterface="ref"
   >
     <li>Item 1</li>
     <li>Item 2</li>
