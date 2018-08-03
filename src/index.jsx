@@ -2,7 +2,6 @@ import { Children, cloneElement, Component } from 'react';
 import { findDOMNode } from 'react-dom';
 import PropTypes from 'prop-types';
 import mergeProps from 'react-merge-props-and-styles';
-import arrayMove from 'array-move';
 
 import getPositionFromEvent from './getPositionFromEvent';
 
@@ -11,8 +10,8 @@ const NULL_INDEX = -1;
 const defaultState = {
   activeElementIndex: NULL_INDEX,
   dragOverIndex: NULL_INDEX,
-  pointerX: 0,
-  pointerY: 0,
+  screenX: 0,
+  screenY: 0,
   fixX: 0,
   fixY: 0,
 };
@@ -22,7 +21,6 @@ export default class Sortable extends Component {
     children: PropTypes.node.isRequired,
     emmiterProps: PropTypes.shape(),
     ghostProps: PropTypes.shape(),
-    moveRecipient: PropTypes.bool,
     onSortComplete: PropTypes.func,
     onSortMove: PropTypes.func,
     receiverProps: PropTypes.shape(),
@@ -30,13 +28,13 @@ export default class Sortable extends Component {
   static defaultProps = {
     emmiterProps: {},
     ghostProps: {},
-    moveRecipient: true,
     receiverProps: {},
     onSortComplete: () => null,
     onSortMove: () => null,
   }
   state = defaultState;
   componentDidMount() {
+    this.isReallMounted = true;
     window.addEventListener('mousemove', this.handleDrag);
     window.addEventListener('pointerup', this.handleDragEnd);
   }
@@ -45,18 +43,12 @@ export default class Sortable extends Component {
     this.itemRefs = this.nullRefs;
   }
   componentWillUnmount() {
+    this.isReallMounted = false;
     window.removeEventListener('mousemove', this.handleDrag);
     window.addEventListener('pointerup', this.handleDragEnd);
   }
   get displayChildren() {
-    const { activeElementIndex, dragOverIndex } = this.state;
-    const { children, moveRecipient } = this.props;
-    if (
-      activeElementIndex === NULL_INDEX ||
-      dragOverIndex === NULL_INDEX ||
-      !moveRecipient
-    ) return children;
-    return arrayMove(children, activeElementIndex, dragOverIndex);
+    return this.props.children;
   }
   get childrenArray() {
     return Children.toArray(this.props.children);
@@ -64,9 +56,9 @@ export default class Sortable extends Component {
   get ghost() {
     const {
       activeElementIndex,
-      pointerX,
       fixX,
-      pointerY,
+      screenX,
+      screenY,
       fixY,
     } = this.state;
     if (activeElementIndex === NULL_INDEX) return null;
@@ -77,9 +69,9 @@ export default class Sortable extends Component {
       style: {
         width: activeRef && activeRef.clientWidth,
         height: activeRef && activeRef.clientHeight,
-        left: pointerX - fixX,
-        top: pointerY - fixY,
-        position: 'absolute',
+        left: screenX - fixX,
+        top: screenY - fixY,
+        position: 'fixed',
       },
     };
     const nextProps = mergeProps(activeChild.props, currentProps, this.props.ghostProps);
@@ -90,17 +82,21 @@ export default class Sortable extends Component {
   }
   itemRefs = [];
   makeBeginHandler = activeElementIndex => (event) => {
-    const { pointerX, pointerY } = getPositionFromEvent(event);
-    const { offsetLeft, offsetTop } = event.target;
-    const fixX = pointerX - offsetLeft;
-    const fixY = pointerY - offsetTop;
-    this.setState({
-      activeElementIndex,
-      pointerX,
-      pointerY,
-      fixX,
-      fixY,
-    });
+    const { screenX, screenY } = getPositionFromEvent(event);
+    const { x, y } = event.target.getBoundingClientRect();
+    const fixX = screenX - x;
+    const fixY = screenY - y;
+    const enableDrag = () => {
+      if (!this.isReallMounted) return;
+      this.setState({
+        activeElementIndex,
+        screenX,
+        screenY,
+        fixX,
+        fixY,
+      });
+    };
+    this.dragTimeout = setTimeout(enableDrag, 128);
     event.stopPropagation();
   };
   makeRefHandler = key => (ref) => {
@@ -110,9 +106,9 @@ export default class Sortable extends Component {
     if (this.state.activeElementIndex === NULL_INDEX) return;
     const pointer = getPositionFromEvent(event);
     const intersect = (node) => {
-      const y1 = node.offsetTop;
-      const y2 = y1 + node.offsetHeight;
-      return y1 < pointer.pointerY && pointer.pointerY < y2;
+      const { top, height } = node.getBoundingClientRect();
+      const top2 = top + height;
+      return top < pointer.clientY && pointer.clientY < top2;
     };
     const dragOverIndex = this.itemRefs.findIndex(intersect);
     this.setState({ ...pointer, dragOverIndex });
@@ -124,20 +120,25 @@ export default class Sortable extends Component {
       this.props.onSortComplete(activeElementIndex, dragOverIndex);
     }
     this.setState(defaultState);
+    clearTimeout(this.dragTimeout);
   };
   cloneChild = (child, key) => {
     const { activeElementIndex, dragOverIndex } = this.state;
     const currentProps = {
       key,
-      onPointerDown: this.makeBeginHandler(key),
+      onDragStart: (event) => {
+        event.preventDefault();
+        return false;
+      },
+      onMouseDown: this.makeBeginHandler(key),
       onTouchStart: this.makeBeginHandler(key),
       onTouchEnd: this.handleDragEnd,
       onTouchCancel: this.handleDragEnd,
       onTouchMove: this.handleDrag,
       ref: this.makeRefHandler(key),
     };
-    const emmiterProps = key === dragOverIndex ||
-      (dragOverIndex === NULL_INDEX && key === activeElementIndex)
+    const emmiterProps = key === activeElementIndex
+      || (dragOverIndex === NULL_INDEX && key === activeElementIndex)
       ? this.props.emmiterProps
       : {};
     const receiverProps = key === dragOverIndex && key !== activeElementIndex
