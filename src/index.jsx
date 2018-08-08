@@ -5,6 +5,7 @@ import mergeProps from 'react-merge-props-and-styles';
 
 import getPositionFromEvent from './getPositionFromEvent';
 
+
 const NULL_INDEX = -1;
 
 const defaultState = {
@@ -12,23 +13,33 @@ const defaultState = {
   dragOverIndex: NULL_INDEX,
   screenX: 0,
   screenY: 0,
-  fixX: 0,
-  fixY: 0,
+  compensateX: 0,
+  compensateY: 0,
 };
+
+const preventDefault = event => event.preventDefault();
 
 export default class Sortable extends Component {
   static propTypes = {
     children: PropTypes.node.isRequired,
-    emmiterProps: PropTypes.shape(),
+    compensateGhostPosition: PropTypes.bool,
+    disabled: PropTypes.bool,
+    producerProps: PropTypes.shape(),
     ghostProps: PropTypes.shape(),
+    ghostOffsetX: PropTypes.number,
+    ghostOffsetY: PropTypes.number,
     onSortComplete: PropTypes.func,
     onSortMove: PropTypes.func,
-    receiverProps: PropTypes.shape(),
+    consumerProps: PropTypes.shape(),
   };
   static defaultProps = {
-    emmiterProps: {},
+    compensateGhostPosition: false,
+    disabled: false,
+    producerProps: {},
     ghostProps: {},
-    receiverProps: {},
+    ghostOffsetX: 0,
+    ghostOffsetY: 0,
+    consumerProps: {},
     onSortComplete: () => null,
     onSortMove: () => null,
   }
@@ -56,10 +67,10 @@ export default class Sortable extends Component {
   get ghost() {
     const {
       activeElementIndex,
-      fixX,
-      screenX,
-      screenY,
-      fixY,
+      compensateX,
+      clientX,
+      clientY,
+      compensateY,
     } = this.state;
     if (activeElementIndex === NULL_INDEX) return null;
     const activeChild = this.childrenArray[activeElementIndex];
@@ -69,8 +80,8 @@ export default class Sortable extends Component {
       style: {
         width: activeRef && activeRef.clientWidth,
         height: activeRef && activeRef.clientHeight,
-        left: screenX - fixX,
-        top: screenY - fixY,
+        left: clientX - compensateX,
+        top: clientY - compensateY,
         position: 'fixed',
       },
     };
@@ -82,18 +93,18 @@ export default class Sortable extends Component {
   }
   itemRefs = [];
   makeBeginHandler = activeElementIndex => (event) => {
-    const { screenX, screenY } = getPositionFromEvent(event);
-    const { x, y } = event.target.getBoundingClientRect();
-    const fixX = screenX - x;
-    const fixY = screenY - y;
+    const position = getPositionFromEvent(event);
+    const rect = event.currentTarget.getBoundingClientRect();
+    const { compensateGhostPosition, ghostOffsetX, ghostOffsetY } = this.props;
+    const compensateX = compensateGhostPosition ? (position.clientX - rect.x) - ghostOffsetX : 0;
+    const compensateY = compensateGhostPosition ? (position.clientY - rect.y) - ghostOffsetY : 0;
     const enableDrag = () => {
       if (!this.isReallMounted) return;
       this.setState({
+        ...position,
         activeElementIndex,
-        screenX,
-        screenY,
-        fixX,
-        fixY,
+        compensateX,
+        compensateY,
       });
     };
     this.dragTimeout = setTimeout(enableDrag, 128);
@@ -126,10 +137,8 @@ export default class Sortable extends Component {
     const { activeElementIndex, dragOverIndex } = this.state;
     const currentProps = {
       key,
-      onDragStart: (event) => {
-        event.preventDefault();
-        return false;
-      },
+      onDragStart: preventDefault,
+      onContextMenu: preventDefault,
       onMouseDown: this.makeBeginHandler(key),
       onTouchStart: this.makeBeginHandler(key),
       onTouchEnd: this.handleDragEnd,
@@ -137,15 +146,17 @@ export default class Sortable extends Component {
       onTouchMove: this.handleDrag,
       ref: this.makeRefHandler(key),
     };
-    const emmiterProps = key === activeElementIndex
+    const producerProps = key === activeElementIndex
       || (dragOverIndex === NULL_INDEX && key === activeElementIndex)
-      ? this.props.emmiterProps
+      ? this.props.producerProps
       : {};
-    const receiverProps = key === dragOverIndex && key !== activeElementIndex
-      ? this.props.receiverProps
-      : {};
-    const nextProps = mergeProps(child.props, emmiterProps, receiverProps, currentProps);
+    const consumerProps = key === dragOverIndex ? this.props.consumerProps : {};
+    const nextProps = mergeProps(child.props, producerProps, consumerProps, currentProps);
     return cloneElement(child, nextProps);
   };
-  render = () => Children.map(this.displayChildren, this.cloneChild).concat(this.ghost);
+  render() {
+    const { children, disabled } = this.props;
+    if (disabled) return children;
+    return Children.map(this.displayChildren, this.cloneChild).concat(this.ghost);
+  }
 }
